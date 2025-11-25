@@ -97,10 +97,10 @@ const App: React.FC = () => {
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle(); // Changed from single() to maybeSingle() to prevent error on no rows
 
       if (error) {
-        console.error('Erro ao buscar perfil:', error);
+        console.error('Erro ao buscar perfil:', error.message);
         return;
       }
 
@@ -108,6 +108,29 @@ const App: React.FC = () => {
         setUserProfile(data);
         setUserType(data.role); // 'master' ou 'player'
         setView('dashboard');
+      } else {
+        // Fallback: Se o usuário existe no Auth mas não tem perfil (ex: criado manualmente ou erro anterior)
+        console.warn('Perfil não encontrado. Criando perfil padrão...');
+        const { data: newProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert([
+            { 
+              id: userId, 
+              name: 'Aventureiro', 
+              role: 'player', 
+              avatar_url: 'https://i.imgur.com/L5mnOPQ.png' 
+            }
+          ])
+          .select()
+          .single();
+        
+        if (!createError && newProfile) {
+          setUserProfile(newProfile);
+          setUserType('player');
+          setView('dashboard');
+        } else if (createError) {
+          console.error('Erro ao criar perfil padrão:', createError.message);
+        }
       }
     } catch (err) {
       console.error('Erro inesperado:', err);
@@ -440,7 +463,6 @@ const App: React.FC = () => {
 
     return (
       <div className="flex flex-col lg:flex-row h-[calc(100vh-8rem)] gap-0 border border-yellow-900/30 rounded-xl overflow-hidden shadow-2xl bg-zinc-900">
-        {/* ... (Resto do componente de mesa mantido) ... */}
         {/* LEFT PANEL: Dice & Chat (300px - 350px fixed) */}
         <aside className="w-full lg:w-[380px] flex flex-col bg-gradient-to-b from-zinc-900 to-zinc-950 border-r border-yellow-500/30 z-10">
           
@@ -566,7 +588,14 @@ const App: React.FC = () => {
                {playerChar.name}
              </div>
           </div>
-          {/* ... */}
+          <div className="absolute top-3/4 left-2/3 -translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing hover:scale-110 transition-transform z-10">
+             <div className="w-14 h-14 rounded-full border-[3px] border-red-500 shadow-[0_0_20px_rgba(220,38,38,0.4)] bg-zinc-800 overflow-hidden relative">
+               <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=GoblinKing" alt="Goblin" className="w-full h-full object-cover" />
+             </div>
+             <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 bg-black/80 text-red-400 text-[10px] font-bold px-2 py-0.5 rounded whitespace-nowrap border border-red-900/50">
+               Goblin
+             </div>
+          </div>
         </main>
 
         {/* RIGHT PANEL: Simple Ficha in VTT */}
@@ -580,7 +609,49 @@ const App: React.FC = () => {
                  <div className="text-xs text-zinc-500">{playerChar.class} Lvl {playerChar.level}</div>
                </div>
             </div>
-            {/* ... */}
+            
+            <div className="grid grid-cols-3 gap-2 text-center mb-4">
+               <div className="bg-zinc-950 rounded border border-zinc-800 p-1">
+                  <div className="text-[10px] text-zinc-500">PV</div>
+                  <div className="text-sm font-bold text-green-500">{playerChar.hp_current}</div>
+               </div>
+               <div className="bg-zinc-950 rounded border border-zinc-800 p-1">
+                  <div className="text-[10px] text-zinc-500">CA</div>
+                  <div className="text-sm font-bold text-blue-400">{playerChar.ac}</div>
+               </div>
+               <div className="bg-zinc-950 rounded border border-zinc-800 p-1">
+                  <div className="text-[10px] text-zinc-500">THAC0</div>
+                  <div className="text-sm font-bold text-yellow-500">{playerChar.thac0}</div>
+               </div>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+             <div>
+                <h3 className="text-xs font-bold text-zinc-500 uppercase mb-2">Atributos</h3>
+                <div className="grid grid-cols-3 gap-2">
+                   {Object.entries(playerChar.attributes).map(([key, val]) => (
+                     key !== 'strength_percentile' && (
+                       <div key={key} className="flex justify-between bg-zinc-950 p-1.5 rounded border border-zinc-800 text-xs">
+                          <span className="text-zinc-500 uppercase">{key.substring(0,3)}</span>
+                          <span className="font-bold text-white">{val}</span>
+                       </div>
+                     )
+                   ))}
+                </div>
+             </div>
+
+             <div>
+                <h3 className="text-xs font-bold text-zinc-500 uppercase mb-2">Inventário Rápido</h3>
+                <ul className="space-y-1">
+                   {playerChar.equipment.slice(0, 5).map((item, i) => (
+                     <li key={i} className="flex justify-between text-xs p-1 hover:bg-zinc-800 rounded cursor-pointer">
+                        <span className="text-zinc-300">{item.item_name}</span>
+                        <span className="text-zinc-500">x{item.quantity}</span>
+                     </li>
+                   ))}
+                </ul>
+             </div>
           </div>
         </aside>
       </div>
@@ -588,7 +659,6 @@ const App: React.FC = () => {
   };
 
   const SettingsView = () => {
-    // (Mantido igual ao anterior)
     const [editingEmail, setEditingEmail] = useState(false);
     const [changingPassword, setChangingPassword] = useState(false);
     
@@ -604,7 +674,7 @@ const App: React.FC = () => {
            </div>
          </div>
          <GamerCard className="mb-6 bg-zinc-900 border-zinc-800">
-           {/* ... Avatar Section ... */}
+           {/* Avatar Section */}
            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div className="flex items-center gap-6">
                  <div className="w-24 h-24 rounded-full border-4 border-zinc-800 shadow-xl overflow-hidden bg-zinc-950 relative group cursor-pointer">
@@ -623,7 +693,59 @@ const App: React.FC = () => {
               </GamerButton>
            </div>
          </GamerCard>
-         {/* ... Email & Password sections ... */}
+
+         {/* Email Section */}
+         <GamerCard className="mb-6 bg-zinc-900 border-zinc-800">
+            <div className="flex items-center justify-between mb-4">
+               <div className="flex items-center gap-3 text-white">
+                  <Mail className="w-5 h-5 text-zinc-500" />
+                  <h3 className="text-sm font-bold uppercase">Endereço de E-mail</h3>
+               </div>
+               {!editingEmail && (
+                 <button onClick={() => setEditingEmail(true)} className="text-xs text-gamer-super font-bold uppercase hover:underline">Alterar</button>
+               )}
+            </div>
+            
+            {editingEmail ? (
+               <form className="space-y-4 bg-zinc-950 p-4 rounded border border-zinc-800">
+                  <GamerInput label="Novo E-mail" type="email" placeholder="novo@email.com" />
+                  <GamerInput label="Confirmar Senha Atual" type="password" placeholder="******" />
+                  <div className="flex gap-2">
+                     <GamerButton type="button" variant="secondary" onClick={() => setEditingEmail(false)}>Cancelar</GamerButton>
+                     <GamerButton type="button">Salvar</GamerButton>
+                  </div>
+               </form>
+            ) : (
+               <div className="text-zinc-400 font-mono text-sm pl-8">{session?.user?.email || 'usuario@exemplo.com'}</div>
+            )}
+         </GamerCard>
+
+         {/* Password Section */}
+         <GamerCard className="bg-zinc-900 border-zinc-800">
+            <div className="flex items-center justify-between mb-4">
+               <div className="flex items-center gap-3 text-white">
+                  <Lock className="w-5 h-5 text-zinc-500" />
+                  <h3 className="text-sm font-bold uppercase">Segurança</h3>
+               </div>
+               {!changingPassword && (
+                 <button onClick={() => setChangingPassword(true)} className="text-xs text-gamer-super font-bold uppercase hover:underline">Alterar Senha</button>
+               )}
+            </div>
+
+            {changingPassword ? (
+               <form className="space-y-4 bg-zinc-950 p-4 rounded border border-zinc-800">
+                  <GamerInput label="Senha Atual" type="password" placeholder="******" />
+                  <GamerInput label="Nova Senha" type="password" placeholder="******" />
+                  <GamerInput label="Confirmar Nova Senha" type="password" placeholder="******" />
+                  <div className="flex gap-2">
+                     <GamerButton type="button" variant="secondary" onClick={() => setChangingPassword(false)}>Cancelar</GamerButton>
+                     <GamerButton type="button">Atualizar Senha</GamerButton>
+                  </div>
+               </form>
+            ) : (
+               <div className="text-zinc-400 font-mono text-sm pl-8">••••••••••••••••</div>
+            )}
+         </GamerCard>
       </div>
     )
   }
@@ -632,7 +754,7 @@ const App: React.FC = () => {
 
   const LoginView = () => (
     <div className="min-h-screen flex flex-col items-center justify-center p-4">
-      {/* ... Header ... */}
+      {/* Header */}
       <div className="mb-8 text-center relative z-20">
         <h1 className="text-4xl font-black tracking-tighter text-white mb-1 drop-shadow-lg">
           PIXEL REALMS <span className="text-gamer-highlight">HUB</span>
@@ -667,6 +789,9 @@ const App: React.FC = () => {
            <GamerButton variant="secondary" onClick={() => setView('role-select')}>
             CADASTRAR
            </GamerButton>
+           <button onClick={() => setView('recovery')} className="text-xs text-zinc-500 hover:text-white uppercase font-bold flex items-center justify-center">
+             Recuperar Senha
+           </button>
         </div>
       </GamerCard>
     </div>
@@ -741,7 +866,6 @@ const App: React.FC = () => {
     );
   };
 
-  // ... (Outras views mantidas: RecoveryView, RoleSelectView, DashboardView)
   const RecoveryView = () => (
     <div className="min-h-screen flex flex-col items-center justify-center p-4">
        <div className="w-full max-w-md mb-4">
@@ -825,7 +949,6 @@ const App: React.FC = () => {
       { id: 2, name: 'Vale das Sombras', status: 'Pausada', progress: 30 },
       { id: 3, name: 'Exp. Goblins', status: 'Concluída', progress: 100 },
     ];
-    // ... (Mantido o resto dos dados mockados do Dashboard)
     const recentSessions = [
       { id: 1, date: '20/11', name: 'O Retorno do Rei', campaign: 'Ruínas de Idron' },
       { id: 2, date: '15/11', name: 'Emboscada Noturna', campaign: 'Vale das Sombras' },
