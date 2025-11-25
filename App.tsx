@@ -106,7 +106,9 @@ const App: React.FC = () => {
 
       if (data) {
         setUserProfile(data);
-        setUserType(data.role); // 'master' ou 'player'
+        // Map DB role ('mestre'/'jogador') to App role ('master'/'player')
+        const appRole = data.role === 'mestre' ? 'master' : 'player';
+        setUserType(appRole); 
         setView('dashboard');
       } else {
         // Fallback: Se o usuário existe no Auth mas não tem perfil (ex: criado manualmente ou erro anterior)
@@ -117,7 +119,7 @@ const App: React.FC = () => {
             { 
               id: userId, 
               name: 'Aventureiro', 
-              role: 'player', 
+              role: 'jogador', // DB value for player
               avatar_url: 'https://i.imgur.com/L5mnOPQ.png' 
             }
           ])
@@ -291,6 +293,9 @@ const App: React.FC = () => {
 
       if (error) throw error;
       if (data.user) {
+        // Map selected role to DB role
+        const dbRole = userType === 'master' ? 'mestre' : 'jogador';
+
         // 2. Criar perfil na tabela pública
         const { error: profileError } = await supabase
           .from('profiles')
@@ -298,7 +303,7 @@ const App: React.FC = () => {
             { 
               id: data.user.id, 
               name: name,
-              role: userType || 'player', // 'master' ou 'player'
+              role: dbRole,
               avatar_url: '', // Pode adicionar padrão
             }
           ]);
